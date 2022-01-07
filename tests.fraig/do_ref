@@ -1,0 +1,11 @@
+cirr ../tests.fraig/sim13.aag
+cirp
+cirp -pi
+cirp -po
+cirp -fl
+cirp -n
+cirg 85068 -fanin 20
+cirg 1111 -fanout 20
+cirw -o ../C11.aag
+q -f
+

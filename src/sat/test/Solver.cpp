@@ -758,7 +758,7 @@ void Solver::claRescaleActivity()
 |________________________________________________________________________________________________@*/
 bool Solver::solve(const vec<Lit>& assumps)
 {
-    simplifyDB();
+    // simplifyDB();
     if (!ok) return false;
 
     SearchParams    params(default_params);

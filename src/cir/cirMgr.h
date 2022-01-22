@@ -50,6 +50,7 @@ public:
    void writeAag(ostream&) const;
    void satRAR() ;
    void satRARtest() ;
+   
 
    CirGate* DFS(CirGate* p) const;
    CirGate* writeDFS(CirGate* p,ostream& outfile) const;
@@ -74,7 +75,7 @@ void readOutput(string output,int l);
 void readAig(string Aig,int l);
 void readSymbol(string symbol);
 void resetprint() const;
-void findAllgd(int, vector<pair<int, int>>&); // (Id, 0or1)
+void findAllgd(int, vector<pair<int, int>>&, map<int, int>&); // (Id, 0or1)
 void compareTwogds(vector<pair<int, int>>&, vector<pair<int, int>>&);
 void traverseWt(int, map<int, int>&, bool, bool&);
 bool combineMAs(map<int, int>&, map<int, int>&);

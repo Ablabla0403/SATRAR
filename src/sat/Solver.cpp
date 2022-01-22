@@ -982,7 +982,7 @@ bool Solver::RARSolve(const vec<Lit>& assumps, std::map<int, int>& MA, std::vect
             return false; }
         Clause* confl = RARpropagate(MA, fanout);
         if (confl != NULL){
-            analyzeFinal(confl), assert(conflict.size() > 0);
+            analyzeFinal(confl);
             cancelUntil(0);
             return false; }
     }

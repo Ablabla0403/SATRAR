@@ -562,27 +562,6 @@ bool CirMgr::mysort(CirGate const* p1,CirGate const* p2){
    return (p1->getID()<p2->getID());
 }
 
-void CirMgr:: findAllgd(int Id, vector<pair<int,int>>& gds) {
-   if (GateMap[Id]->getFanout().size() == 1 && GateMap[Id]->getFanout()[0]->getTypeStr() == "Aig") {
-      if (GateMap[Id]->getFanout()[0]->getFanin0()->getID() == Id) {
-         gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[0]->getID(), 0));
-      } else {
-         gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[0]->getID(), 1));
-      }
-      findAllgd(GateMap[Id]->getFanout()[0]->getID(), gds);
-   } else {
-      for (size_t i=0; i<GateMap[Id]->getFanout().size(); ++i) {
-         if (GateMap[Id]->getFanout()[i]->getTypeStr() == "Aig") {
-            if (GateMap[Id]->getFanout()[0]->getFanin0()->getID() == Id) {
-               gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[0]->getID(), 0));
-            } else {
-               gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[0]->getID(), 1));
-            }
-            findAllgd(GateMap[Id]->getFanout()[i]->getID(), gds);
-         }
-      }
-   }
-}
 
 void CirMgr::traverseWt(int wt, map<int, int>& excite, bool iswt, bool& conflict) {
    CirGate* tmp;
@@ -800,115 +779,115 @@ void genAigModel(SatSolver& s, vector<Gate*>& gates, map<int, CirGate *>& GateMa
    }
 }
 
-void CirMgr::satRARtest() {
-   map<int, int> excite, propagation, MAgd;      // (0:neg 1:pos: 2:free)
-   vector<pair<int, int>> gds1, gds2; // (fanoutId, fanin0 or fanin1) gds1 for excitation, gds2 for checking others
-   vector<int> redundant;
-   bool conflict = false;
-   for (auto it=GateMap.begin();it!=GateMap.end();++it){
-      excite[it->first] = 2;
-      propagation[it->first] = 2;
-   }
+// void CirMgr::satRARtest() {
+//    map<int, int> excite, propagation, MAgd;      // (0:neg 1:pos: 2:free)
+//    vector<pair<int, int>> gds1, gds2; // (fanoutId, fanin0 or fanin1) gds1 for excitation, gds2 for checking others
+//    vector<int> redundant;
+//    bool conflict = false;
+//    for (auto it=GateMap.begin();it!=GateMap.end();++it){
+//       excite[it->first] = 2;
+//       propagation[it->first] = 2;
+//    }
 
-   for (auto it=GateMap.begin(); it!=GateMap.end(); ++it){
-      if (it->second->getTypeStr() == "Aig" || it->second->getTypeStr() == "Pi") {
-         cout << "(" << it->first << ")" << "\n";
-         excite[it->first] = 1;
-         traverseWt(it->first, excite, true, conflict);
-         if (conflict) {
-            conflict = false;
-            cout << "CONFLICT!!!\n";
-         }
-         if (it->second->getTypeStr() == "Aig") {
-            if (it->second->getFanout()[0]->getTypeStr() == "Aig") { // construct gds for first fanout
-               if(it->second->getFanout()[0]->getFanin0()->getID() == it->first) {
-                  gds1.push_back(pair<int, int>(it->second->getFanout()[0]->getID(), 0));
-               } else {
-                  gds1.push_back(pair<int, int>(it->second->getFanout()[0]->getID(), 1));  
-               }
-            }
-            findAllgd(it->second->getFanout()[0]->getID(), gds1);
-            if (it->second->getFanout().size() > 1) { // check other fanouts and compare with gds1, then get final gds1
-               for (size_t i=1; i<it->second->getFanout().size(); ++i) {
-                  if(it->second->getFanout()[i]->getTypeStr() == "Aig") {
-                     if(it->second->getFanout()[i]->getFanin0()->getID() == it->first) {
-                        gds2.push_back(pair<int, int>(it->second->getFanout()[i]->getID(), 0));
-                     } else {
-                        gds2.push_back(pair<int, int>(it->second->getFanout()[i]->getID(), 1));  
-                     }
-                  }
-                  findAllgd(it->second->getFanout()[i]->getID(), gds2);
-               }
-               compareTwogds(gds1, gds2);
-               gds2.clear();
-               if(gds1.size() == 0) {
-                  gds1.clear();  
-               }
-            }
-            // for(int j=0; j<gds1.size(); ++j) {
-            //    cout << "(" << gds1[j].first << "  " << gds1[j].second << ")\n" ;
-            // }
-            for (size_t i=0; i<gds1.size(); ++i) {
-               if(gds1[i].second == 0){
-                  if (GateMap[gds1[i].first]->getInv1() == false) {
-                     propagation[GateMap[gds1[i].first] -> getFanin1()->getID()] = 1;
-                  } else {
-                     propagation[GateMap[gds1[i].first] -> getFanin1()->getID()] = 0;
-                  }
-                  traverseWt(GateMap[gds1[i].first] -> getFanin1()->getID(), propagation, false, conflict);
-                  if (conflict) {
-                     conflict = false;
-                     cout << "CONFLICT!!!\n";
-                  }
-               } else {
-                  if (GateMap[gds1[i].first]->getInv0() == false) {
-                     propagation[GateMap[gds1[i].first] -> getFanin0()->getID()] = 1;
-                  } else {
-                     propagation[GateMap[gds1[i].first] -> getFanin0()->getID()] = 0;
-                  }
-                  traverseWt(GateMap[gds1[i].first] -> getFanin0()->getID(), propagation, false, conflict);
-                  if (conflict) {
-                     conflict = false;
-                     cout << "CONFLICT!!!\n";
-                  }
-               }
-            }
-            if (!combineMAs(excite, propagation)) {  // combine two MAs
-               cout << "CONFLICT!!!\n";
-            }
-            // for (auto itt=excite.begin(); itt!=excite.end(); itt++) {
-            //    cout << itt->first << "  " << itt->second << "\n";
-            // }
-            for (size_t i=0; i<gds1.size(); ++i) {
-               propagation[gds1[i].first] = 1;
-               traverseWt(gds1[i].first, MAgd, true, conflict);
-               if (conflict) {
-                  conflict = false;
-                  cout << "CONFLICT!!!\n";
-               }
-               if(!combineMAs(excite, MAgd)) {
-                  cout << "Gd: " << gds1[i].first << " CONFLICT!!!\n";
-               }
-               for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
-                  MAgd[it2->first] = 2;
-               }
-            }
-            redundant.clear();
-            for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
-               propagation[it2->first] = 2;
-            }
-            conflict = false;
-            gds1.clear();
-         }
-         for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
-            // cout << it2->first << " " << excite[it2->first] << "\n";
-            excite[it2->first] = 2;
-            propagation[it2->first] = 2;
-         }
-      }
-      cout << "\n";
-   }
-}
+//    for (auto it=GateMap.begin(); it!=GateMap.end(); ++it){
+//       if (it->second->getTypeStr() == "Aig" || it->second->getTypeStr() == "Pi") {
+//          cout << "(" << it->first << ")" << "\n";
+//          excite[it->first] = 1;
+//          traverseWt(it->first, excite, true, conflict);
+//          if (conflict) {
+//             conflict = false;
+//             cout << "CONFLICT!!!\n";
+//          }
+//          if (it->second->getTypeStr() == "Aig") {
+//             if (it->second->getFanout()[0]->getTypeStr() == "Aig") { // construct gds for first fanout
+//                if(it->second->getFanout()[0]->getFanin0()->getID() == it->first) {
+//                   gds1.push_back(pair<int, int>(it->second->getFanout()[0]->getID(), 0));
+//                } else {
+//                   gds1.push_back(pair<int, int>(it->second->getFanout()[0]->getID(), 1));  
+//                }
+//             }
+//             findAllgd(it->second->getFanout()[0]->getID(), gds1);
+//             if (it->second->getFanout().size() > 1) { // check other fanouts and compare with gds1, then get final gds1
+//                for (size_t i=1; i<it->second->getFanout().size(); ++i) {
+//                   if(it->second->getFanout()[i]->getTypeStr() == "Aig") {
+//                      if(it->second->getFanout()[i]->getFanin0()->getID() == it->first) {
+//                         gds2.push_back(pair<int, int>(it->second->getFanout()[i]->getID(), 0));
+//                      } else {
+//                         gds2.push_back(pair<int, int>(it->second->getFanout()[i]->getID(), 1));  
+//                      }
+//                   }
+//                   findAllgd(it->second->getFanout()[i]->getID(), gds2, check_gd);
+//                }
+//                compareTwogds(gds1, gds2);
+//                gds2.clear();
+//                if(gds1.size() == 0) {
+//                   gds1.clear();  
+//                }
+//             }
+//             // for(int j=0; j<gds1.size(); ++j) {
+//             //    cout << "(" << gds1[j].first << "  " << gds1[j].second << ")\n" ;
+//             // }
+//             for (size_t i=0; i<gds1.size(); ++i) {
+//                if(gds1[i].second == 0){
+//                   if (GateMap[gds1[i].first]->getInv1() == false) {
+//                      propagation[GateMap[gds1[i].first] -> getFanin1()->getID()] = 1;
+//                   } else {
+//                      propagation[GateMap[gds1[i].first] -> getFanin1()->getID()] = 0;
+//                   }
+//                   traverseWt(GateMap[gds1[i].first] -> getFanin1()->getID(), propagation, false, conflict);
+//                   if (conflict) {
+//                      conflict = false;
+//                      cout << "CONFLICT!!!\n";
+//                   }
+//                } else {
+//                   if (GateMap[gds1[i].first]->getInv0() == false) {
+//                      propagation[GateMap[gds1[i].first] -> getFanin0()->getID()] = 1;
+//                   } else {
+//                      propagation[GateMap[gds1[i].first] -> getFanin0()->getID()] = 0;
+//                   }
+//                   traverseWt(GateMap[gds1[i].first] -> getFanin0()->getID(), propagation, false, conflict);
+//                   if (conflict) {
+//                      conflict = false;
+//                      cout << "CONFLICT!!!\n";
+//                   }
+//                }
+//             }
+//             if (!combineMAs(excite, propagation)) {  // combine two MAs
+//                cout << "CONFLICT!!!\n";
+//             }
+//             // for (auto itt=excite.begin(); itt!=excite.end(); itt++) {
+//             //    cout << itt->first << "  " << itt->second << "\n";
+//             // }
+//             for (size_t i=0; i<gds1.size(); ++i) {
+//                propagation[gds1[i].first] = 1;
+//                traverseWt(gds1[i].first, MAgd, true, conflict);
+//                if (conflict) {
+//                   conflict = false;
+//                   cout << "CONFLICT!!!\n";
+//                }
+//                if(!combineMAs(excite, MAgd)) {
+//                   cout << "Gd: " << gds1[i].first << " CONFLICT!!!\n";
+//                }
+//                for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
+//                   MAgd[it2->first] = 2;
+//                }
+//             }
+//             redundant.clear();
+//             for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
+//                propagation[it2->first] = 2;
+//             }
+//             conflict = false;
+//             gds1.clear();
+//          }
+//          for (auto it2=GateMap.begin(); it2!=GateMap.end(); it2++){
+//             // cout << it2->first << " " << excite[it2->first] << "\n";
+//             excite[it2->first] = 2;
+//             propagation[it2->first] = 2;
+//          }
+//       }
+//       cout << "\n";
+//    }
+// }
 
 void clear_MA(map<int, int>& MA) {
    for (auto it=MA.begin();it!=MA.end();++it){
@@ -916,15 +895,31 @@ void clear_MA(map<int, int>& MA) {
    }
 }
 
+void CirMgr:: findAllgd(int Id, vector<pair<int,int>>& gds, map<int, int>& check_gd) {
+   for (size_t i=0; i<GateMap[Id]->getFanout().size(); ++i) {
+      if (GateMap[Id]->getFanout()[i]->getTypeStr() == "Aig" && check_gd[GateMap[Id]->getFanout()[i]->getID()] == 2) {
+         if (GateMap[Id]->getFanout()[i]->getFanin0()->getID() == Id) {
+            check_gd[GateMap[Id]->getFanout()[i]->getID()] = 1;
+            gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[i]->getID(), 0));
+         } else {
+            check_gd[GateMap[Id]->getFanout()[i]->getID()] = 1;
+            gds.push_back(pair<int, int>(GateMap[Id]->getFanout()[i]->getID(), 1));
+         }
+         findAllgd(GateMap[Id]->getFanout()[i]->getID(), gds, check_gd);
+      }
+   }
+}
+
 void CirMgr::satRAR() {
 
    // write aig circuit into cnf 
    vector<Gate* > gates;
-   vector<pair<int,int>> gds1, gds2;
-   map<int, int> MA_wt, MA_gd;
-   bool result_wt, result_gd;
+   vector<pair<int,int>> gds1, gds2, gds3, gds4;
+   map<int, int> MA_wt, MA_gd, MA_wt2, check_gd; // MA_wt2 for the second decision
+   bool result_wt = true, result_gd = true, isConflict = false, result_wt2;
    SatSolver solver;
    solver.initialize();
+
    for(int i=0; i<GateMap.size()+1; ++i) {
       gates.push_back(new Gate(i));
    }
@@ -933,119 +928,305 @@ void CirMgr::satRAR() {
    for (auto it=GateMap.begin();it!=GateMap.end();++it){
       MA_gd[it->first] = 2;
       MA_wt[it->first] = 2;
+      MA_wt2[it->first] = 2;
+      check_gd[it->first] = 2;
    }
 
    // Clear assumptions
    solver.assumeRelease();  
-   
-   // make assumptions
-   int id = 12;
-   vector<Var> vv = {gates[id]->getVar()};
-   vector<bool> vb = {true};
 
-   auto it = GateMap[id];
-   // find all fanout
+   int count_tar = 0, count_alt = 0;
    vector<int> fanout;
-   for (size_t i=0; i<it->getFanout().size(); ++i) {
-      fanout.push_back(it->getFanout()[i]->getID());
-   }
+   vector<Var> vv;
+   vector<bool> vb;
+   bool findwire = false, findgate = false;
+   // make assumptions
+   int id;
+   int test = 0;
 
-   // calculate all Gds   
-    
-   if (it->getFanout()[0]->getTypeStr() == "Aig") { // construct gds for first fanout
-      if(it->getFanout()[0]->getFanin0()->getID() == id) {
-         gds1.push_back(pair<int, int>(it->getFanout()[0]->getID(), 0));
-      } else {
-         gds1.push_back(pair<int, int>(it->getFanout()[0]->getID(), 1));  
-      }
-   }
-   findAllgd(it->getFanout()[0]->getID(), gds1);
-   if (it->getFanout().size() > 1) { // check other fanouts and compare with gds1, then get final gds1
-      for (size_t i=1; i<it->getFanout().size(); ++i) {
-         if(it->getFanout()[i]->getTypeStr() == "Aig") {
-            if(it->getFanout()[i]->getFanin0()->getID() == id) {
-               gds2.push_back(pair<int, int>(it->getFanout()[i]->getID(), 0));
+   cout << GateMap.size() << "\n";
+
+   for (auto itt=GateMap.begin();itt!=GateMap.end();++itt){
+      
+      // cout << "type: " << itt->second->getTypeStr() << "\n";
+
+      if(itt->second->getTypeStr() == "Aig") {
+
+         // for (size_t l=0; l<itt->second->getFanout().size(); l++) {
+         //    if(itt->second->getFanout()[l]->getTypeStr() == "PO") {
+
+         //    }
+         // }
+
+         fanout.clear();
+         gds1.clear();
+         gds2.clear();
+         vv.clear();
+         vb.clear();
+         clear_MA(MA_wt);
+
+         id = itt->first;
+         count_tar ++;
+         cout << "id: " << id << " count_tar: " << count_tar << "\n";
+      
+         vv.push_back(gates[id]->getVar());
+         vb.push_back(true);
+
+         MA_wt[gates[id]->getVar()] = true;
+
+         auto it = GateMap[id];
+         // find all fanout
+         
+
+         // // calculate all Gds   
+
+         // if (id == 344 || id == 345) {
+         //    for (size_t k=0; k<it->getFanout().size(); k++) {
+         //       cout << "fsdfdsf " << it->getFanout()[k]->getID() << "\n";
+         //    }
+         // }
+         
+         if (it->getFanout()[0]->getTypeStr() == "Aig") { // construct gds for first fanout
+            if(it->getFanout()[0]->getFanin0()->getID() == id) {
+               gds1.push_back(pair<int, int>(it->getFanout()[0]->getID(), 0));
             } else {
-               gds2.push_back(pair<int, int>(it->getFanout()[i]->getID(), 1));  
+               gds1.push_back(pair<int, int>(it->getFanout()[0]->getID(), 1));  
             }
          }
-         findAllgd(it->getFanout()[i]->getID(), gds2);
-      }
-      compareTwogds(gds1, gds2);
-      gds2.clear();
-      if(gds1.size() == 0) {
-         gds1.clear();  
-      }
-   }
 
-   // excitation
-   int count = 0;
-   vector<int> empty;
+         findAllgd(it->getFanout()[0]->getID(), gds1, check_gd);
+         clear_MA(check_gd);
+         if (it->getFanout().size() > 1) { // check other fanouts and compare with gds1, then get final gds1
+            for (size_t i=1; i<it->getFanout().size(); ++i) {
+               if(it->getFanout()[i]->getTypeStr() == "Aig") {
+                  if(it->getFanout()[i]->getFanin0()->getID() == id) {
+                     gds2.push_back(pair<int, int>(it->getFanout()[i]->getID(), 0));
+                  } else {
+                     gds2.push_back(pair<int, int>(it->getFanout()[i]->getID(), 1));  
+                  }
+               }
+               findAllgd(it->getFanout()[i]->getID(), gds2, check_gd);
+               clear_MA(check_gd);
+            }
+            compareTwogds(gds1, gds2);
+            gds2.clear();
+            if(gds1.size() == 0) {
+               gds1.clear();  
+            }
+         }
 
-   for (auto it2=gds1.begin(); it2!=gds1.end(); it2++) {
-      if (it2->second == 1) {
-         vv.push_back(gates[GateMap[it2->first]->getFanin0()->getID()]->getVar());
-         if (GateMap[it2->first]->getInv0()) vb.push_back(false);
-         else vb.push_back(true);
-
-      } else {
-         vv.push_back(gates[GateMap[it2->first]->getFanin1()->getID()]->getVar());
-         if (GateMap[it2->first]->getInv1()) vb.push_back(false);
-         else vb.push_back(true);
-      }
-
-      MA_wt[vv[count]] = vb[count];
-   }
-
-   solver.assumeVec(vv, vb);
-
-   solver.printStats();
-   result_wt = solver.assumpRARSolve(MA_wt, fanout);
-   for (auto it2=GateMap.begin();it2!=GateMap.end();++it2){
-      cout << "id: " << it2->first << " value: " << MA_wt[it2->first] << "\n";
-   }
-
-   cout << (result_wt? "SAT" : "UNSAT") << endl;
-
-   vv.clear();
-   vb.clear();
-   solver.assumeRelease();
-   solver.resetAssign();
+         // for (size_t k=0; k<gds1.size(); k++) {
+         //    cout << "  gds  " << gds1[k].first << "\n";
+         // }
 
 
-   for (auto it2=gds1.begin(); it2!=gds1.end(); it2++) {
-      cout << "===========================\n";
-      cout << "Gd_id: " << it2->first << "\n";
+         for (size_t i=0; i<gds1.size(); ++i) {
+            fanout.push_back(gds1[i].first);
+         }
+         
 
-      solver.assumeRelease();
+         // excitation
+         vector<int> empty;
 
-      vv.push_back(gates[it2->first]->getVar());
-      vb.push_back(true);
-      
-      MA_gd[vv[count]] = vb[count];
-      solver.assumeVec(vv, vb);
-      result_gd = solver.assumpRARSolve(MA_gd, empty);
-      for (auto it3=GateMap.begin();it3!=GateMap.end();++it3){
-         cout << "id: " << it3->first << " value: " << MA_gd[it3->first] << "\n";
-      }
-      // for (auto it3=GateMap.begin();it3!=GateMap.end();++it3){
-      //    if (MA_wt[it3->first] != 2 && MA_gd[it3->first] == 2 && it3->first != id) {
-      //       cout << "hello " << it3->first << "\n";
-      //       vv.push_back(gates[it3->first]->getVar());
-      //       vb.push_back(MA_wt[it3->first]);
-      //       vv.pop_back();
-      //       vb.pop_back();
+         for (auto it2=gds1.begin(); it2!=gds1.end(); it2++) {
+            if (it2->second == 1) {
+               vv.push_back(gates[GateMap[it2->first]->getFanin0()->getID()]->getVar());
+               if (GateMap[it2->first]->getInv0()) vb.push_back(false);
+               else vb.push_back(true);
+
+            } else {
+               vv.push_back(gates[GateMap[it2->first]->getFanin1()->getID()]->getVar());
+               if (GateMap[it2->first]->getInv1()) vb.push_back(false);
+               else vb.push_back(true);
+            }
+
+            MA_wt[vv[vv.size()-1]] = vb[vb.size()-1];
+         }
+
+         // for (size_t j=0; j<vv.size(); j++) {
+         //    cout << vv[j] << "  " << vb[j] << "\n";
+         // }
+
+         solver.assumeVec(vv, vb);
+         // cout << gds1.size() << "   " <<  vv.size() << "   " << vb.size() << "\n";
+
+         result_wt = solver.assumpRARSolve(MA_wt, fanout);
+         // solver.printStats();
+         // for (auto it2=GateMap.begin();it2!=GateMap.end();++it2){
+         //    cout << "id: " << it2->first << " value: " << MA_wt[it2->first] << "\n";
+         // }
+
+         solver.assumeRelease();
+         solver.resetAssign();
+
+         // cout << (result_wt? "SAT" : "UNSAT") << endl;
+
+         vv.clear();
+         vb.clear();
+         solver.assumeRelease();
+         solver.resetAssign();
+
+         // for each Gd
+         for (auto it2=gds1.begin(); it2!=gds1.end(); it2++) {
+            // cout << "===========================\n";
+            // cout << "Gd_id: " << it2->first << "\n";
+            if (findwire || findgate) {
+               findwire = false;
+               findgate = false;
+               break;
+            }
+
+            solver.assumeRelease();
+
+            vv.push_back(gates[it2->first]->getVar());
+            vb.push_back(true);
             
-      //    }
-      // }
-      cout << "result: " << result_gd << "\n";
-      vv.clear();
-      vb.clear();
-      solver.assumeRelease();
-      solver.resetAssign();
-      for (auto it=GateMap.begin();it!=GateMap.end();++it){
-         MA_gd[it->first] = 2;
+            MA_gd[vv[0]] = vb[0];
+            solver.assumeVec(vv, vb);
+            result_gd = solver.assumpRARSolve(MA_gd, empty);
+            // for (auto it3=GateMap.begin();it3!=GateMap.end();++it3){
+            //    cout << "id: " << it3->first << " value: " << MA_gd[it3->first] << "\n";
+            // }
+            solver.assumeRelease();
+            solver.resetAssign();
+
+            // for each wire in MA_wt but not in MA_gd
+
+            for (auto it3=GateMap.begin();it3!=GateMap.end(); ++it3){
+               if ((MA_wt[it3->first] != 2) && (MA_gd[it3->first] == 2)) {
+                  // for Gd
+                  vv.push_back(gates[it2->first]->getVar());
+                  vb.push_back(true);
+                  // for decision
+                  vv.push_back(gates[it3->first]->getVar());
+                  vb.push_back(MA_wt[it3->first]);
+
+                  if (it->getFanout()[0]->getTypeStr() == "Aig") { // construct gds for first fanout
+                     if(it->getFanout()[0]->getFanin0()->getID() == it3->first) {
+                        gds3.push_back(pair<int, int>(it->getFanout()[0]->getID(), 0));
+                     } else {
+                        gds3.push_back(pair<int, int>(it->getFanout()[0]->getID(), 1));  
+                     }
+                  }
+
+                  findAllgd(it->getFanout()[0]->getID(), gds3, check_gd);
+                  clear_MA(check_gd);
+                  if (it->getFanout().size() > 1) { // check other fanouts and compare with gds1, then get final gds1
+                     for (size_t i=1; i<it->getFanout().size(); ++i) {
+                        if(it->getFanout()[i]->getTypeStr() == "Aig") {
+                           if(it->getFanout()[i]->getFanin0()->getID() == it3->first) {
+                              gds4.push_back(pair<int, int>(it->getFanout()[i]->getID(), 0));
+                           } else {
+                              gds4.push_back(pair<int, int>(it->getFanout()[i]->getID(), 1));  
+                           }
+                        }
+                        findAllgd(it->getFanout()[i]->getID(), gds4, check_gd);
+                        clear_MA(check_gd);
+                     }
+                     compareTwogds(gds3, gds4);
+                     gds4.clear();
+                     if(gds3.size() == 0) {
+                        gds3.clear();  
+                     }
+                  }
+
+                  for (auto it4=gds3.begin(); it4!=gds3.end(); it4++) {
+                     if (it4->second == 1) {
+                        vv.push_back(gates[GateMap[it4->first]->getFanin0()->getID()]->getVar());
+                        if (GateMap[it4->first]->getInv0()) vb.push_back(false);
+                        else vb.push_back(true);
+
+                     } else {
+                        vv.push_back(gates[GateMap[it4->first]->getFanin1()->getID()]->getVar());
+                        if (GateMap[it4->first]->getInv1()) vb.push_back(false);
+                        else vb.push_back(true);
+                     }
+
+                     MA_gd[vv[vv.size()-1]] = vb[vb.size()-1];
+                  }
+
+                   for (size_t m=0; m<gds3.size(); ++m) {
+                     fanout.push_back(gds1[m].first);
+                  }
+
+
+                  
+                  solver.assumeVec(vv, vb);
+                  // cout << "select ID " << it3->first << " value " << vb[0] << "\n";
+
+                  result_gd = solver.assumpRARSolve(MA_gd, fanout);
+                  fanout.clear();
+                  // for (auto it4=GateMap.begin();it4!=GateMap.end();++it4){
+                  //    cout << "id: " << it4->first << " value: " << MA_gd[it4->first] << "\n";
+                  // }
+                  if (!result_gd) {
+                     if ( (it3->first != id) || ((GateMap[it2->first]->getFanin0()->getID() != it3->first) 
+                                             && (GateMap[it2->first]->getFanin1()->getID() != it3->first))){
+                        cout << "alternative wire: " << it3->first << " -> " << it2->first << "  " << count_alt << "\n"; 
+                        findwire = true;
+                        count_alt ++;
+                     }
+                  }
+                  else {
+                     for (auto it4=GateMap.begin();it4!=GateMap.end();++it4){
+                        if((MA_gd[it4->first] != 2) && (MA_wt[it4->first] != 2) && (MA_wt[it4->first] != MA_gd[it4->first]) && it3->first != id && it4->first != id) {
+                           cout << "alternative gate: " << it3->first  << " & " << it4->first << " -> " << it2->first << "\n"; 
+                           isConflict = true;
+                           count_alt ++;
+                           // cout << "count_alt: " << count_alt << "\n";
+                           findgate = true;
+                           break;
+                        }
+                        // if(!isConflict) {
+                        //    for (auto it5=GateMap.begin(); it5!=GateMap.end(); it5++) {
+                        //       vv.clear();
+                        //       vb.clear();S
+                        //       solver.assumeRelease();
+                        //       solver.resetAssign();
+                        //       if ((MA_gd[it5->first] != 2) && (MA_wt[it5->first] == 2)) {
+                        //          // for Gd
+                        //          vv.push_back(gates[it2->first]->getVar());
+                        //          vb.push_back(true);
+                        //          // for decision of Wt
+                        //          vv.push_back(gates[it3->first]->getVar());
+                        //          vb.push_back(MA_wt[it3->first]);
+                        //          // for decision of Gd
+                        //          vv.push_back(gates[it3->first]->getVar());
+                        //          vb.push_back(MA_wt[it3->first]);
+                        //          solver.assumeVec(vv, vb);
+                        //          result_wt2 = solver.assumpRARSolve(MA_wt2, empty);
+                        //       }
+                        //       for (auto it6=GateMap.begin();it6!=GateMap.end();++it6) {
+                        //          if((MA_wt2[it6->first] != 2) && (MA_gd[it6->first] != 2) && (MA_wt[it6->first] != MA_gd[it6->first])) {
+                        //             cout << "alternative multi-gate: " << it6->first << " & " <<it3->first  << " & " << it4->first << " -> " << it2->first << "\n"; 
+                        //          }
+                        //       }
+                        //    }
+                        // }
+                        // isConflict = false;
+                     }
+                  }
+            //       // cout << (result_gd? "SAT" : "UNSAT") << endl;
+
+            //       //reset 
+                  vv.clear();
+                  vb.clear();
+                  solver.assumeRelease();
+                  solver.resetAssign();
+                  
+                  for (auto it4=GateMap.begin();it4!=GateMap.end();++it4){
+                     MA_gd[it4->first] = 2;
+                  }
+                  if (findwire || findgate) {
+                     break;
+                  }
+               }
+            }
+         }
       }
    }
 
+   cout << "#tar: " << count_tar << " #alt: " << count_alt << "\n";
+   cout << "test: " << test << "\n";
+   cout << GateMap.size() << "\n";
 }
